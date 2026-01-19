@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = 'xphenomenal/demo-app'
         IMAGE_TAG  = "${BUILD_NUMBER}"
-        DOCKERHUB = credentials('dockerhub-creds')
+        DOCKERHUB = credentials('dockerhub-cred')
     }
 
     stages {
