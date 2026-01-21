@@ -2,51 +2,60 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'xphenomenal/demo-app'
-        IMAGE_TAG  = "${BUILD_NUMBER}"
         DOCKERHUB = credentials('dockerhub-cred')
+        IMAGE_NAME = 'xphenomenal/demo-app'
     }
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+        stage('Build Both Branches in Parallel') {
+            parallel {
 
-        stage('Build Image') {
-            steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
-            }
-        }
+                stage('Build MAIN branch') {
+                    steps {
+                        dir('main-branch') {
+                            git branch: 'main',
+                                url: 'https://github.com/Xphenomenal008/docker-cicd.git'
 
-        stage('DockerHub Login') {
-            steps {
-                sh """
-                echo ${DOCKERHUB_PSW} | docker login \
-                -u ${DOCKERHUB_USR} --password-stdin
-                """
-            }
-        }
+                            bat 'npm install'
+                            bat 'npm run build'
 
-        stage('Push Image') {
-            steps {
-                sh """
-                docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                docker push ${IMAGE_NAME}:latest
-                """
+                            bat 'docker build -t %IMAGE_NAME%:main .'
+                            bat '''
+                            echo %DOCKERHUB_PSW% | docker login -u %DOCKERHUB_USR% --password-stdin
+                            docker push %IMAGE_NAME%:main
+                            '''
+                        }
+                    }
+                }
+
+                stage('Build DEV branch') {
+                    steps {
+                        dir('dev-branch') {
+                            git branch: 'dev',
+                                url: 'https://github.com/Xphenomenal008/docker-cicd.git'
+
+                            bat 'npm install'
+                            bat 'npm run build'
+
+                            bat 'docker build -t %IMAGE_NAME%:dev .'
+                            bat '''
+                            echo %DOCKERHUB_PSW% | docker login -u %DOCKERHUB_USR% --password-stdin
+                            docker push %IMAGE_NAME%:dev
+                            '''
+                        }
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            sh """
+            echo "Cleaning old Docker images..."
+            bat '''
             docker image prune -f
-            docker images | grep '${IMAGE_NAME}' | awk '{print \$3}' | xargs -r docker rmi -f
-            """
+            '''
         }
     }
 }
